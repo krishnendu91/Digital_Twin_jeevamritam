@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Jivamritam – Digital Twin</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+/* ================= GENERAL ================= */
+
+body{
+margin:0;
+font-family:'Segoe UI', Arial, sans-serif;
+background:#f4f7fb;
+color:#2c3e50;
+}
+
+.header{
+background:#1e3a5f;
+color:white;
+padding:16px;
+text-align:center;
+font-size:22px;
+font-weight:600;
+}
+
+.dashboard{
+display:grid;
+grid-template-columns:260px 1fr 260px;
+grid-template-rows:auto 520px 300px;
+gap:20px;
+padding:20px;
+}
+
+/* ================= CONTROLS MOVED UP ================= */
+
+.controls{
+grid-column:1 / span 3;
+text-align:center;
+margin-top:-10px;
+}
+
+button{
+padding:8px 18px;
+margin:6px;
+border-radius:20px;
+border:none;
+background:#1e3a5f;
+color:white;
+cursor:pointer;
+font-weight:600;
+}
+
+button:hover{
+background:#1565c0;
+}
+
+/* ================= CARDS ================= */
+
+.card{
+background:white;
+border-radius:12px;
+box-shadow:0 8px 25px rgba(0,0,0,0.05);
+padding:18px;
+}
+
+/* ================= TANK LEVEL PANEL ================= */
+
+.level-box{
+height:120px;
+background:#e8edf4;
+border-radius:10px;
+overflow:hidden;
+position:relative;
+margin-bottom:15px;
+}
+
+.level-fill{
+position:absolute;
+bottom:0;
+width:100%;
+background:linear-gradient(180deg,#42a5f5,#1e88e5);
+transition:height 0.5s ease;
+}
+
+.level-text{
+position:absolute;
+width:100%;
+text-align:center;
+top:45%;
+font-weight:bold;
+color:#0d47a1;
+}
+
+/* ================= STATUS ================= */
+
+#status{
+margin-top:15px;
+padding:10px;
+border-radius:8px;
+text-align:center;
+font-weight:bold;
+background:#1e1e1e;
+color:white;
+}
+
+.alert{
+background:#c62828 !important;
+}
+
+/* ================= SVG ================= */
+
+.plant{
+background:white;
+border-radius:12px;
+box-shadow:0 8px 25px rgba(0,0,0,0.05);
+padding:10px;
+}
+
+svg{
+width:100%;
+height:100%;
+background:white;
+border:1px solid #ddd;
+}
+
+/* ================= PIPELINES ================= */
+
+.pipe{
+fill:none;
+stroke-width:7;
+stroke-linecap:round;
+stroke-dasharray:10;
+}
+
+.pipe-filter{ stroke:#42a5f5; }
+.pipe-backwash{ stroke:#e53935; }
+
+.flowing{
+animation:flow 1s linear infinite;
+}
+
+@keyframes flow{
+to{ stroke-dashoffset:-28; }
+}
+
+/* ================= VALVES ================= */
+
+.valve.open{
+filter:drop-shadow(0 0 6px #00c853);
+}
+
+/* ================= CHART ================= */
+
+
+.graph-section{
+width:95%;
+margin:20px auto 40px auto;
+background:white;
+padding:20px;
+border-radius:12px;
+box-shadow:0 8px 25px rgba(0,0,0,0.05);
+}
+canvas{
+height:260px !important;
+}
+.logout-btn{
+float:right;
+margin-right:20px;
+padding:8px 18px;
+border-radius:20px;
+border:none;
+background:#ffffff;
+color:#1e3a5f;
+font-weight:600;
+cursor:pointer;
+}
+
+.logout-btn:hover{
+background:#e3ecf7;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+
+<span>Jivamritam – Digital Twin</span>
+
+<button class="logout-btn" onclick="logout()">Logout</button>
+
+</div>
+
+<div class="dashboard">
+
+<!-- CONTROLS AT TOP -->
+<div class="controls">
+<button onclick="setMode('filter')">Filter</button>
+<button onclick="setMode('backwash')">Backwash</button>
+<button onclick="setMode('shutdown')">Shutdown</button>
+</div>
+
+<!-- LEFT PANEL -->
+<div class="card">
+
+<h3>Tank Levels</h3>
+
+<h4>Input Tank (L1)</h4>
+<div class="level-box">
+<div id="l1Fill" class="level-fill" style="height:40%"></div>
+<div id="l1Text" class="level-text">40%</div>
+</div>
+
+<h4>Output Tank (L2)</h4>
+<div class="level-box">
+<div id="l2Fill" class="level-fill" style="height:60%"></div>
+<div id="l2Text" class="level-text">60%</div>
+</div>
+
+<div id="status">Filter Mode Active</div>
+</div>
+
+<!-- CENTER PLANT -->
+<div class="plant">
+
+<svg viewBox="0 0 1200 520">
+
+<!-- INPUT TANK -->
+<image href="../img/input.png" x="40" y="160" width="170" height="280"/>
+<text x="60" y="150" font-size="16" font-weight="bold">Input Tank</text>
+<text id="svgL1" x="100" y="310" fill="white" font-size="22" font-weight="bold">40%</text>
+
+<!-- OUTPUT TANK -->
+<image href="../img/output.png" x="980" y="160" width="170" height="350"/>
+<text x="990" y="150" font-size="16" font-weight="bold">Output Tank</text>
+<text id="svgL2" x="1040" y="310" fill="white" font-size="22" font-weight="bold">60%</text>
+
+<!-- FILTER + PUMP -->
+<image href="../img/filter.png" x="520" y="130" width="130" height="320"/>
+<image href="../img/pump.png" x="260" y="300" width="70" height="70"/>
+
+<!-- PRESSURE SENSORS -->
+<image href="../img/pressure.png" x="520" y="100" width="50" height="50"/>
+<text x="520" y="100" font-size="12">P1</text>
+<image href="../img/pressure.png" x="610" y="100" width="50" height="50"/>
+<text x="610" y="100" font-size="12">P2</text>
+
+<image href="../img/micro.png" x="820" y="260" width="50" height="50"/>
+<text x="810" y="250" font-size="12">Microfilter</text>
+<image href="../img/treatedwater.png" x="910" y="260" width="50" height="50"/>
+<text x="915" y="245" font-size="12">Treated Water</text>
+
+<!-- RESERVOIR VALVES S1–S6 -->
+<g>
+<image id="S1" class="valve" href="../img/reservoir.png" x="210" y="310" width="40" height="40"/>
+<text x="215" y="305" font-size="12">S1</text>
+
+<image id="S2" class="valve" href="../img/reservoir.png" x="310" y="410" width="40" height="40"/>
+<text x="315" y="405" font-size="12">S2</text>
+
+<image id="S3" class="valve" href="../img/reservoir.png" x="450" y="260" width="40" height="40"/>
+<text x="455" y="255" font-size="12">S3</text>
+
+<image id="S4" class="valve" href="../img/reservoir.png" x="650" y="270" width="40" height="40"/>
+<text x="655" y="265" font-size="12">S4</text>
+<!-- 
+<image id="S5" class="valve" href="reservoir.png" x="760" y="250" width="40" height="40"/>
+<text x="465" y="245" font-size="12">S5</text>
+
+<image id="S6" class="valve" href="reservoir.png" x="860" y="250" width="40" height="40"/>
+<text x="365" y="245" font-size="12">S6</text> -->
+</g>
+
+<!-- FILTER PIPE -->
+<path id="pipeFilter" class="pipe pipe-filter"
+d="M210 325 L260 325 L330 285 L460 285
+   L520 135 L650 135 L760 285 L900 285 L980 285"/>
+
+<!-- BACKWASH PIPE -->
+<path id="pipeBackwash" class="pipe pipe-backwash pipe-static"
+        d="
+        M980 385
+        L980 485
+        L760 485
+        L650 485
+        L650 485
+        L520 485
+        L520 425
+        L520 425
+        L330 425
+        L260 425
+        L260 325
+        "/>
+
+</svg>
+
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="graph-section">
+<h3>Pressure (Live)</h3>
+<canvas id="trendChart"></canvas>
+</div>
+
+</div>
+<script>
+
+/* ===== PRESSURE GRAPH ===== */
+
+const ctx = document.getElementById("trendChart").getContext("2d");
+
+const chart = new Chart(ctx,{
+type:"line",
+data:{
+labels:[],
+datasets:[
+{label:"P1",borderColor:"#1565c0",data:[],tension:0.4},
+{label:"P2",borderColor:"#ff9800",data:[],tension:0.4}
+]},
+options:{responsive:true,maintainAspectRatio:false}
+});
+
+setInterval(()=>{
+const p1=(1.5+Math.random()).toFixed(2);
+const p2=(1.0+Math.random()).toFixed(2);
+
+chart.data.labels.push("");
+chart.data.datasets[0].data.push(p1);
+chart.data.datasets[1].data.push(p2);
+
+if(chart.data.labels.length>20){
+chart.data.labels.shift();
+chart.data.datasets[0].data.shift();
+chart.data.datasets[1].data.shift();
+}
+
+chart.update();
+
+/* Tank update */
+let l1=Math.floor(30+Math.random()*60);
+let l2=Math.floor(40+Math.random()*50);
+
+document.getElementById("l1Fill").style.height=l1+"%";
+document.getElementById("l1Text").innerText=l1+"%";
+document.getElementById("svgL1").innerText=l1+"%";
+
+document.getElementById("l2Fill").style.height=l2+"%";
+document.getElementById("l2Text").innerText=l2+"%";
+document.getElementById("svgL2").innerText=l2+"%";
+
+},2000);
+
+
+/* ===== MODE CONTROL ===== */
+
+const statusBox = document.getElementById("status");
+const filterPipe = document.getElementById("pipeFilter");
+const backwashPipe = document.getElementById("pipeBackwash");
+
+/* Valve Helpers */
+function openValve(id){
+const valve=document.getElementById(id);
+if(valve) valve.classList.add("open");
+}
+
+function closeAllValves(){
+["S1","S2","S3","S4"].forEach(id=>{
+const valve=document.getElementById(id);
+if(valve) valve.classList.remove("open");
+});
+}
+
+/* Mode Switch */
+function setMode(mode){
+
+/* RESET EVERYTHING */
+closeAllValves();
+filterPipe.classList.remove("flowing");
+backwashPipe.classList.remove("flowing");
+statusBox.classList.remove("alert");
+
+if(mode==="filter"){
+
+statusBox.innerText="Filter Mode Active";
+
+/* Open correct valves */
+openValve("S1");
+openValve("S3");
+openValve("S4");
+
+/* Activate blue flow */
+filterPipe.classList.add("flowing");
+
+}
+
+else if(mode==="backwash"){
+
+statusBox.innerText="Backwash in Progress";
+statusBox.classList.add("alert");
+
+/* Open backwash valve */
+openValve("S2");
+
+/* Activate red flow */
+backwashPipe.classList.add("flowing");
+
+}
+
+else if(mode==="shutdown"){
+
+statusBox.innerText="System Shutdown";
+statusBox.classList.add("alert");
+
+/* No flow active */
+}
+
+}
+
+/* Default */
+setMode("filter");
+function logout(){
+
+window.location.href="/";
+
+}
+</script>
+
+</body>
+</html>
