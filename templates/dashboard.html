@@ -257,14 +257,37 @@ background:#e3ecf7;
 <image id="S1" class="valve" href="../img/reservoir.png" x="210" y="310" width="40" height="40"/>
 <text x="215" y="305" font-size="12">S1</text>
 
-<image id="S2" class="valve" href="../img/reservoir.png" x="310" y="410" width="40" height="40"/>
-<text x="315" y="405" font-size="12">S2</text>
+<image id="S2" class="valve" href="../img/reservoir.png" x="315" y="435" width="40" height="40"/>
+<text x="315" y="435" font-size="12">S2</text>
 
-<image id="S3" class="valve" href="../img/reservoir.png" x="450" y="260" width="40" height="40"/>
-<text x="455" y="255" font-size="12">S3</text>
+<image id="S3" class="valve" href="../img/F1.png" x="435" y="180" width="40" height="40"/>
+<text x="435" y="180" font-size="12">F1</text>
+
+<image id="S3" class="valve" href="../img/F1.png" x="475" y="180" width="40" height="40"/>
+<text x="475" y="180" font-size="12">F2</text>
+
+<image id="S3" class="valve" href="../img/reservoir.png" x="355" y="170" width="40" height="40"/>
+<text x="355" y="180" font-size="12">S5</text>
+
+<image id="S4" class="valve" href="../img/reservoir.png" x="450" y="260" width="40" height="40"/>
+<text x="257" y="255" font-size="12">S3</text>
+
+<image id="S4" class="valve" href="../img/reservoir.png"  x="328" y="305"" width="40" height="40"/>
+<text x="328" y="305" font-size="12">S4</text>
+
+<image id="S4" class="valve" href="../img/reservoir.png" x="458" y="305" width="40" height="40"/>
+<text x="458" y="305" font-size="12">S6</text>
+
+<image id="S4" class="valve" href="../img/reservoir.png"x="455" y="355" width="40" height="40"/>
+<text x="455" y="355" font-size="12">v1</text>
+
+<image id="S4" class="valve" href="../img/reservoir.png" x="355" y="355" width="40" height="40"/>
+<text x="355" y="355" font-size="12">v2</text>
+
+
 
 <image id="S4" class="valve" href="../img/reservoir.png" x="650" y="270" width="40" height="40"/>
-<text x="655" y="265" font-size="12">S4</text>
+<text x="655" y="265" font-size="12">S7</text>
 <!-- 
 <image id="S5" class="valve" href="reservoir.png" x="760" y="250" width="40" height="40"/>
 <text x="465" y="245" font-size="12">S5</text>
@@ -307,8 +330,7 @@ d="M210 325 L260 325 L330 285 L460 285
 </div>
 <script>
 
-/* ===== PRESSURE GRAPH ===== */
-
+// ===== CHART =====
 const ctx = document.getElementById("trendChart").getContext("2d");
 
 const chart = new Chart(ctx,{
@@ -322,109 +344,106 @@ datasets:[
 options:{responsive:true,maintainAspectRatio:false}
 });
 
-setInterval(()=>{
-const p1=(1.5+Math.random()).toFixed(2);
-const p2=(1.0+Math.random()).toFixed(2);
+// ===== FETCH FROM THINGSPEAK =====
+async function updateFromThingSpeak(){
 
-chart.data.labels.push("");
-chart.data.datasets[0].data.push(p1);
-chart.data.datasets[1].data.push(p2);
+let res = await fetch("/thingspeak")
+let data = await res.json()
+
+// Tank
+document.getElementById("l1Fill").style.height = data.tank1 + "%"
+document.getElementById("l1Text").innerText = data.tank1 + "%"
+document.getElementById("svgL1").innerText = data.tank1 + "%"
+
+document.getElementById("l2Fill").style.height = data.tank2 + "%"
+document.getElementById("l2Text").innerText = data.tank2 + "%"
+document.getElementById("svgL2").innerText = data.tank2 + "%"
+
+// Chart
+chart.data.labels.push("")
+chart.data.datasets[0].data.push(data.pressure1)
+chart.data.datasets[1].data.push(data.pressure2)
 
 if(chart.data.labels.length>20){
-chart.data.labels.shift();
-chart.data.datasets[0].data.shift();
-chart.data.datasets[1].data.shift();
+chart.data.labels.shift()
+chart.data.datasets[0].data.shift()
+chart.data.datasets[1].data.shift()
 }
 
-chart.update();
+chart.update()
 
-/* Tank update */
-let l1=Math.floor(30+Math.random()*60);
-let l2=Math.floor(40+Math.random()*50);
+// Mode
+applyMode(data.mode)
 
-document.getElementById("l1Fill").style.height=l1+"%";
-document.getElementById("l1Text").innerText=l1+"%";
-document.getElementById("svgL1").innerText=l1+"%";
+}
 
-document.getElementById("l2Fill").style.height=l2+"%";
-document.getElementById("l2Text").innerText=l2+"%";
-document.getElementById("svgL2").innerText=l2+"%";
+// ===== MODE VISUAL =====
+function applyMode(mode){
 
-},2000);
+closeAllValves()
+filterPipe.classList.remove("flowing")
+backwashPipe.classList.remove("flowing")
+statusBox.classList.remove("alert")
 
+if(mode == 1){
+statusBox.innerText="Filter Mode Active"
+openValve("S1")
+openValve("S3")
+openValve("S4")
+filterPipe.classList.add("flowing")
+}
 
-/* ===== MODE CONTROL ===== */
+else if(mode == 2){
+statusBox.innerText="Backwash in Progress"
+statusBox.classList.add("alert")
+openValve("S2")
+backwashPipe.classList.add("flowing")
+}
 
-const statusBox = document.getElementById("status");
-const filterPipe = document.getElementById("pipeFilter");
-const backwashPipe = document.getElementById("pipeBackwash");
+else{
+statusBox.innerText="System Shutdown"
+statusBox.classList.add("alert")
+}
 
-/* Valve Helpers */
+}
+
+// ===== CONTROL BUTTON =====
+async function setMode(mode){
+
+await fetch("/control",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({mode:mode})
+})
+
+}
+
+// ===== VALVES =====
 function openValve(id){
-const valve=document.getElementById(id);
-if(valve) valve.classList.add("open");
+let v=document.getElementById(id)
+if(v) v.classList.add("open")
 }
 
 function closeAllValves(){
 ["S1","S2","S3","S4"].forEach(id=>{
-const valve=document.getElementById(id);
-if(valve) valve.classList.remove("open");
-});
+let v=document.getElementById(id)
+if(v) v.classList.remove("open")
+})
 }
 
-/* Mode Switch */
-function setMode(mode){
+// ===== ELEMENTS =====
+const statusBox=document.getElementById("status")
+const filterPipe=document.getElementById("pipeFilter")
+const backwashPipe=document.getElementById("pipeBackwash")
 
-/* RESET EVERYTHING */
-closeAllValves();
-filterPipe.classList.remove("flowing");
-backwashPipe.classList.remove("flowing");
-statusBox.classList.remove("alert");
+// ===== LOOP =====
+setInterval(updateFromThingSpeak,5000)
 
-if(mode==="filter"){
-
-statusBox.innerText="Filter Mode Active";
-
-/* Open correct valves */
-openValve("S1");
-openValve("S3");
-openValve("S4");
-
-/* Activate blue flow */
-filterPipe.classList.add("flowing");
-
-}
-
-else if(mode==="backwash"){
-
-statusBox.innerText="Backwash in Progress";
-statusBox.classList.add("alert");
-
-/* Open backwash valve */
-openValve("S2");
-
-/* Activate red flow */
-backwashPipe.classList.add("flowing");
-
-}
-
-else if(mode==="shutdown"){
-
-statusBox.innerText="System Shutdown";
-statusBox.classList.add("alert");
-
-/* No flow active */
-}
-
-}
-
-/* Default */
-setMode("filter");
+// ===== LOGOUT =====
 function logout(){
-
-window.location.href="/";
-
+window.location.href="/"
 }
+
 </script>
 
 </body>
